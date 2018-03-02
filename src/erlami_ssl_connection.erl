@@ -84,7 +84,7 @@ close({sslsocket, new_ssl, _Port}=Socket) ->
 -spec read_line(
     Socket::gen_tcp:socket(), Timeout::integer()
 ) -> {ok, Line::string()} | {error, Reason::term()}.
-read_line(Socket, Timeout) ->
+read_line(Socket, _Timeout) ->
     % TO needed because of a bug in new_ssl? Without it, the connection
     % wont work (wont be able to read any data.. wtf?).
     ssl:recv(Socket, 0, 100).
