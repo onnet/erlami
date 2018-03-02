@@ -1,28 +1,7 @@
-%%% This is the main code for the ami client. Each one of these
-%%% will monitor a particular asterisk box. These processes will be
-%%% registered by the name "asterisk-listener-Name", where Name is
-%%% particular id for an asterisk box given in the configuration file.
-%%%
-%%% Copyright 2012 Marcelo Gornstein <marcelog@gmail.com>
-%%%
-%%% Licensed under the Apache License, Version 2.0 (the "License");
-%%% you may not use this file except in compliance with the License.
-%%% You may obtain a copy of the License at
-%%%
-%%%     http://www.apache.org/licenses/LICENSE-2.0
-%%%
-%%% Unless required by applicable law or agreed to in writing, software
-%%% distributed under the License is distributed on an "AS IS" BASIS,
-%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-%%% See the License for the specific language governing permissions and
-%%% limitations under the License.
 -module(erlami_client).
--author("Marcelo Gornstein <marcelog@gmail.com>").
--github("https://github.com/marcelog").
--homepage("http://marcelog.github.com/").
--license("Apache License 2.0").
 -behaviour(gen_fsm).
 -define(SERVER, ?MODULE).
+-include_lib("erlami.hrl").
 -include_lib("erlami_connection.hrl").
 
 %% ------------------------------------------------------------------
@@ -302,6 +281,9 @@ validate_salutation("Asterisk Call Manager/1.0\r\n") ->
     ok;
 
 validate_salutation("Asterisk Call Manager/1.2\r\n") ->
+    ok;
+
+validate_salutation("Asterisk Call Manager/1.3\r\n") ->
     ok;
 
 validate_salutation(Invalid) ->
