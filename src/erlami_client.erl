@@ -158,7 +158,7 @@ wait_salutation(
     Username = erlami_server_config:extract_username(ServerInfo),
     Secret = erlami_server_config:extract_secret(ServerInfo),
     Action = erlami_message:new_action(
-        "login", [{"username", Username}, {"secret", Secret}]
+        "login", [{"username", Username}, {"secret", Secret}, {"events","on"}]
     ),
     Fun = Conn#erlami_connection.send,
     ok = Fun(Action),
@@ -169,8 +169,11 @@ wait_salutation(
 wait_login_response({response, Response}, #clientstate{}=State) ->
     case erlami_message:is_response_success(Response) of
         false ->
-            error_logger:error_msg("Cant login: ~p", [Response]),
-            erlang:error(cantlogin);
+            error_logger:error_msg("Cant login: ~p ~p", [Response,State]),
+           {clientstate,Server,_,_,_,_} = State,
+            supervisor:terminate_child(erlami_sup,whereis(erlami_client:get_worker_name(Server))),
+            {next_state, receiving, State};
+       %     erlang:error(cantlogin);
         true -> {next_state, receiving, State}
     end.
 
@@ -284,6 +287,12 @@ validate_salutation("Asterisk Call Manager/1.2\r\n") ->
     ok;
 
 validate_salutation("Asterisk Call Manager/1.3\r\n") ->
+    ok;
+
+validate_salutation("Asterisk Call Manager/2.10.3\r\n") ->
+    ok;
+
+validate_salutation("Asterisk Call Manager/2.10.6\r\n") ->
     ok;
 
 validate_salutation(Invalid) ->

@@ -1,10 +1,9 @@
-{application, erlami, [
-  {description, "" },
-  {vsn, "1"},
-  {modules, []},
-  {registered, [erlami]},
-  {applications, [kernel,stdlib,lager,inets,sasl,crypto,public_key,compiler,syntax_tools, ssl]},
-  {mod, { erlami_app, []}},
-  {env, []}
-]}.
-
+{application,erlami,
+             [{description,[]},
+              {vsn,"1"},
+              {modules,[]},
+              {registered,[erlami]},
+              {applications,[kernel,stdlib,lager,inets,sasl,crypto,public_key,
+                             compiler,syntax_tools,ssl]},
+              {mod,{erlami_app,[]}},
+              {env,[]}]}.

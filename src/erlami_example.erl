@@ -21,7 +21,7 @@
 
 -export([
     event_callback/2, listen_to/1, list_channels/1, list_commands/1,
-    dial/4, dial/3
+    dial/4, dial/3,response_callback/2
 ]).
 
 dial(ServerName, Channel, {Context, Extension, Priority}) ->
@@ -36,6 +36,7 @@ dial(ServerName, Channel, {Context, Extension, Priority}, Variables) ->
         ],
         Variables
     ),
+    io:fwrite("Action ~p\n",[Action]),
     erlami_client:send_action(ServerName, Action, fun response_callback/2).
 
 list_channels(ServerName) ->

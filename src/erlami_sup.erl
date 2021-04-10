@@ -39,9 +39,11 @@
 %% API functions
 %% ===================================================================
 start_link() ->
+    io:fwrite("Start_Link: ~p ~p",[{local, ?MODULE}, ?MODULE]),
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 start_child(ServerName, WorkerName, ServerInfo) ->
+    io:fwrite("Start_Chaild: ~p ~p",[?MODULE, [ServerName, WorkerName, ServerInfo]]),
     supervisor:start_child(?MODULE, [ServerName, WorkerName, ServerInfo]).
 
 %% ===================================================================

@@ -26,7 +26,8 @@ start_link(ErlamiClient, #erlami_connection{}=Connection) ->
     ErlamiClient::string(), Connection::#erlami_connection{}
 ) -> none().
 read_salutation(ErlamiClient, Connection) ->
-    Line = wait_line(Connection),
+    [_,_,Server] = binary:split((atom_to_binary(ErlamiClient,utf8)), <<"_">>,[global]),
+    Line = wait_line(Connection,Server),
     lager:debug("Got as salutation: ~p", [Line]),
     erlami_client:process_salutation(ErlamiClient, {salutation, Line}).
 
@@ -38,7 +39,8 @@ read_salutation(ErlamiClient, Connection) ->
     Acc::string()
 ) -> none().
 loop(ErlamiClient, Connection, Acc) ->
-    NewAcc = case wait_line(Connection) of
+   [_,_,Server] = binary:split((atom_to_binary(ErlamiClient,utf8)), <<"_">>,[global]),
+    NewAcc = case wait_line(Connection,Server) of
         "\r\n" ->
             UnmarshalledMsg = erlami_message:unmarshall(Acc),
             dispatch_message(
@@ -48,7 +50,7 @@ loop(ErlamiClient, Connection, Acc) ->
                 Acc
             ),
             [];
-        Line -> string:concat(Acc, Line)
+        Line -> string:concat(z_convert:to_list(Acc), z_convert:to_list(Line))
     end,
     loop(ErlamiClient, Connection, NewAcc).
 
@@ -66,24 +68,28 @@ dispatch_message(ErlamiClient, Event, false, true, _Original) ->
     erlami_client:process_event(ErlamiClient, {event, Event});
 
 dispatch_message(_ErlamiClient, Message, _IsResponse, _IsEvent, Original) ->
-    lager:error(
-        "Unknown message: ~p -> ~p", [Original, erlami_message:to_list(Message)]
-    ).
+  %  lager:error(
+  %      "Unknown message: ~p -> ~p", [Original, erlami_message:to_list(Message)]
+  %  )
+  ok  .
     %erlang:error(unknown_message).
 
 %% @doc Reads a single line from asterisk.
--spec wait_line(Connection::#erlami_connection{}) -> string().
-wait_line(#erlami_connection{read_line=Fun}=Connection) ->
-    case Fun(10) of
+%-spec wait_line(Connection::#erlami_connection{}, Server:ne_binary()) -> string().
+wait_line(#erlami_connection{read_line=Fun}=Connection, Server) ->
+%    lager:info("Connection Server: ~p ~p ~p",[Connection, #erlami_connection{read_line=Fun}=Connection, Server]),
+    case Fun(100) of
         {ok, Line} -> Line;
         {error, timeout} ->
             receive
-                {close} -> erlang:exit(shutdown)
-            after 10 ->
+                {close} -> timer:sleep(5000)
+            after 100 ->
                 ok
             end,
-            wait_line(Connection);
+            wait_line(Connection,Server);
         {error, Reason} ->
-            error_logger:error_msg("Got: ~p", [Reason]),
-            erlang:error(Reason)
+            error_logger:error_msg("Got: ~p", [Reason])
+%            timer:sleep(5000), lager:info("Connection Server Reason: ~p ~p",[Server,Connection]),%erlami_app:restart(binary_to_atom(Server,utf8)), "restart",
+%            wait_line(Connection,Server)
+  %          erlang:error(Reason)
     end.
