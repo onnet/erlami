@@ -43,8 +43,9 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 start_child(ServerName, WorkerName, ServerInfo) ->
-    io:fwrite("Start_Chaild: ~p ~p",[?MODULE, [ServerName, WorkerName, ServerInfo]]),
-    supervisor:start_child(?MODULE, [ServerName, WorkerName, ServerInfo]).
+  %  io:fwrite("Start_Chaild: ~p ~p",[?MODULE, [ServerName, WorkerName, ServerInfo]]),
+    A = supervisor:start_child(?MODULE, [ServerName, WorkerName, ServerInfo]),
+    io:fwrite("Start_Chaild: ~p ~p ~p",[A, ?MODULE, [ServerName, WorkerName, ServerInfo]]).
 
 %% ===================================================================
 %% Supervisor callbacks
