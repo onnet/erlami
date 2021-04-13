@@ -43,9 +43,14 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 start_child(ServerName, WorkerName, ServerInfo) ->
-  %  io:fwrite("Start_Chaild: ~p ~p",[?MODULE, [ServerName, WorkerName, ServerInfo]]),
     A = supervisor:start_child(?MODULE, [ServerName, WorkerName, ServerInfo]),
-    io:fwrite("Start_Chaild: ~p ~p ~p",[A, ?MODULE, [ServerName, WorkerName, ServerInfo]]).
+    EPID = case A of
+      {ok,PID} -> PID;
+      _ -> io:fwrite("Error_Start_Chaild: ~p ~p ~p\n",[A, ?MODULE, [ServerName, WorkerName, ServerInfo]]), error
+    end,
+    io:fwrite("Start_Chaild: ~p ~p ~p\n",[EPID, ?MODULE, [ServerName, WorkerName, ServerInfo]]),
+    EPID
+.
 
 %% ===================================================================
 %% Supervisor callbacks

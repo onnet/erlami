@@ -88,8 +88,9 @@ wait_line(#erlami_connection{read_line=Fun}=Connection, Server) ->
             end,
             wait_line(Connection,Server);
         {error, Reason} ->
-            error_logger:error_msg("Got: ~p", [Reason])
-%            timer:sleep(5000), lager:info("Connection Server Reason: ~p ~p",[Server,Connection]),%erlami_app:restart(binary_to_atom(Server,utf8)), "restart",
-%            wait_line(Connection,Server)
-  %          erlang:error(Reason)
+            error_logger:error_msg("Got: ~p", [Reason]),
+            erlami_app:stop(Server)
+    %        "restart",
+    %        wait_line(Connection,Server),
+    %        erlang:error(Reason)
     end.

@@ -27,9 +27,14 @@ start(_StartType, _StartArgs) ->
       Enabled = crm_utils:get_value([z_convert:to_binary(X),<<"enabled">>],Data),
       case Enabled == 1 andalso Ip =/= <<>> andalso Username =/= <<>> andalso Secret =/= <<>> of
         true -> 
-          erlami_sup:start_child(binary_to_atom(Ip,utf8), erlami_client:get_worker_name(binary_to_atom(Ip,utf8)),
+           case ets:info(processes) of
+             undefined -> ets:new(processes,[set,named_table,public,{write_concurrency,false},{read_concurrency,true}]);
+             _ -> ok
+           end,
+          A = erlami_sup:start_child(binary_to_atom(Ip,utf8), erlami_client:get_worker_name(binary_to_atom(Ip,utf8)),
                      [{connection,{erlami_tcp_connection,[{host, binary_to_list(Ip)},{port,Port}]}},{enabled,Enabled},
-                     {username,binary_to_list(Username)},{secret,binary_to_list(Secret)}]);
+                     {username,binary_to_list(Username)},{secret,binary_to_list(Secret)}]),
+           ets:insert(processes,{Ip,{z_convert:to_binary(X),A}});
         false -> ok
       end
   end, Filelist),
@@ -49,9 +54,10 @@ start(Server) ->
       Enabled = crm_utils:get_value([Server,<<"enabled">>],Data),
       case Enabled == 1 andalso Ip =/= <<>> andalso Username =/= <<>> andalso Secret =/= <<>> of
         true -> 
-          erlami_sup:start_child(binary_to_atom(Ip,utf8), erlami_client:get_worker_name(binary_to_atom(Ip,utf8)),
+          A = erlami_sup:start_child(binary_to_atom(Ip,utf8), erlami_client:get_worker_name(binary_to_atom(Ip,utf8)),
                      [{connection,{erlami_tcp_connection,[{host, binary_to_list(Ip)},{port,Port}]}},{enabled,Enabled},
-                     {username,binary_to_list(Username)},{secret,binary_to_list(Secret)}]);
+                     {username,binary_to_list(Username)},{secret,binary_to_list(Secret)}]),
+           ets:insert(processes,{Ip,Server,A}});
         false -> ok
       end.
 
@@ -75,9 +81,10 @@ restart(Server) ->
       Enabled = crm_utils:get_value([z_convert:to_binary(X),<<"enabled">>],Data),
       case Enabled == 1 andalso Ip == Server andalso Username =/= <<>> andalso Secret =/= <<>> of
         true -> 
-          erlami_sup:start_child(binary_to_atom(Ip,utf8), erlami_client:get_worker_name(binary_to_atom(Ip,utf8)),
+          A = erlami_sup:start_child(binary_to_atom(Ip,utf8), erlami_client:get_worker_name(binary_to_atom(Ip,utf8)),
                      [{connection, {erlami_tcp_connection, [{host, binary_to_list(Ip)}, {port, Port}]}},{enabled, Enabled},
-                     {username, binary_to_list(Username)},{secret, binary_to_list(Secret)}]);
+                     {username, binary_to_list(Username)},{secret, binary_to_list(Secret)}]),
+           ets:insert(processes,{Ip,{z_convert:to_binary(X),A}});
         false -> ok
       end
   end, Filelist).
