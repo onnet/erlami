@@ -219,6 +219,7 @@ explode_lines(Text) ->
 -spec unmarshall(Text::string()) -> message().
 unmarshall(Text) ->
     Lines = explode_lines(Text),
+%        io:fwrite("\n\n\n\n ~p \n\n\n\n",[Lines]),
     Message = new_message(),
     lists:foldl(
         fun(Line, Acc) ->

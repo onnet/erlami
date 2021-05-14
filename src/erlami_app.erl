@@ -12,79 +12,61 @@
 %% ===================================================================
 start(_StartType, _StartArgs) ->
     {ok, SupPid} = erlami_sup:start_link(),
-    {ok,Filelist} = file:list_dir("/etc/crm_conductor/"),
+    sql:start(),
+    Clients = sql:sql(get,<<"clients">>,"crm_api_url,ami_server,ami_port,ami_username,ami_secret","enabled=1"),
     lists:map(fun(X) ->
-      Filename = <<"/etc/crm_conductor/", (z_convert:to_binary(X))/binary>>,
-      {ok,File} = file:read_file(binary:bin_to_list(Filename)),
-      Data = jiffy:decode(File),
-      Ip = crm_utils:get_value([z_convert:to_binary(X),<<"ami_server">>],Data),
-      Port = case crm_utils:get_value([z_convert:to_binary(X),<<"ami_port">>],Data) of
+      [Crm_Api_Url,Ip,Port1,Username,Secret] = X,
+      Port = case Port1 of
         <<>> -> 5038;
-        Port1 -> Port1
+        P -> P
       end,
-      Username = crm_utils:get_value([z_convert:to_binary(X),<<"ami_username">>],Data),
-      Secret = crm_utils:get_value([z_convert:to_binary(X),<<"ami_secret">>],Data),
-      Enabled = crm_utils:get_value([z_convert:to_binary(X),<<"enabled">>],Data),
-      case Enabled == 1 andalso Ip =/= <<>> andalso Username =/= <<>> andalso Secret =/= <<>> of
+      case Ip =/= <<>> andalso Username =/= <<>> andalso Secret =/= <<>> of
         true -> 
-           case ets:info(processes) of
-             undefined -> ets:new(processes,[set,named_table,public,{write_concurrency,false},{read_concurrency,true}]);
-             _ -> ok
-           end,
+          case ets:info(processes) of
+            undefined -> ets:new(processes,[set,named_table,public,{write_concurrency,false},{read_concurrency,true}]);
+            _ -> ok
+          end,
           A = erlami_sup:start_child(binary_to_atom(Ip,utf8), erlami_client:get_worker_name(binary_to_atom(Ip,utf8)),
-                     [{connection,{erlami_tcp_connection,[{host, binary_to_list(Ip)},{port,Port}]}},{enabled,Enabled},
-                     {username,binary_to_list(Username)},{secret,binary_to_list(Secret)}]),
-           ets:insert(processes,{Ip,{z_convert:to_binary(X),A}});
+              [{connection,{erlami_tcp_connection,[{host, binary_to_list(Ip)},{port,Port}]}},
+              {username,binary_to_list(Username)},{secret,binary_to_list(Secret)}]),
+          io:fwrite("AMI Start ~p",[A]),
+          ets:insert(processes,{Ip,{z_convert:to_binary(Crm_Api_Url),A}});
         false -> ok
       end
-  end, Filelist),
+    end,
+    Clients),
   {ok, SupPid}.
 
 start(Server) ->
-      Filename = <<"/etc/crm_conductor/", Server/binary>>,
-      {ok,File} = file:read_file(binary:bin_to_list(Filename)),
-      Data = jiffy:decode(File),
-      Ip = crm_utils:get_value([Server,<<"ami_server">>],Data),
-      Port = case crm_utils:get_value([Server,<<"ami_port">>],Data) of
-        <<>> -> 5038;
-        Port1 -> Port1
-      end,
-      Username = crm_utils:get_value([Server,<<"ami_username">>],Data),
-      Secret = crm_utils:get_value([Server,<<"ami_secret">>],Data),
-      Enabled = crm_utils:get_value([Server,<<"enabled">>],Data),
-      case Enabled == 1 andalso Ip =/= <<>> andalso Username =/= <<>> andalso Secret =/= <<>> of
+   % {ok, SupPid} = erlami_sup:start_link(),
+    sql:start(),
+    io:fwrite("Server: ~p\n",[Server]),
+    Client = sql:sql(get,<<"clients">>,"crm_api_url,ami_server,ami_port,ami_username,ami_secret","enabled!=2 and ami_server = \"" ++ z_convert:to_list(Server) ++ "\""),
+    [[Crm_Api_Url,Ip,Port1,Username,Secret]] = Client,
+    Port = case Port1 of
+      <<>> -> 5038;
+      P -> P
+    end,
+    case Ip =/= <<>> andalso Username =/= <<>> andalso Secret =/= <<>> of
         true -> 
+          case ets:info(processes) of
+            undefined -> ets:new(processes,[set,named_table,public,{write_concurrency,false},{read_concurrency,true}]);
+            _ -> ok
+          end,
           A = erlami_sup:start_child(binary_to_atom(Ip,utf8), erlami_client:get_worker_name(binary_to_atom(Ip,utf8)),
-                     [{connection,{erlami_tcp_connection,[{host, binary_to_list(Ip)},{port,Port}]}},{enabled,Enabled},
-                     {username,binary_to_list(Username)},{secret,binary_to_list(Secret)}]),
-           ets:insert(processes,{Ip,Server,A}});
+              [{connection,{erlami_tcp_connection,[{host, binary_to_list(Ip)},{port,Port}]}},
+              {username,binary_to_list(Username)},{secret,binary_to_list(Secret)}]),
+          ets:insert(processes,{Ip,{z_convert:to_binary(Crm_Api_Url),A}});
         false -> ok
-      end.
+    end.
+%  {ok, SupPid}.
 
 stop(Server) ->
+  sql:start(),
+  sql:sql(update,<<"clients">>,"enabled=0, disabled_cause=\"No AMI Connected\"","ami_server = \"" ++ z_convert:to_list(Server) ++ "\""),
+  ets:delete(processes,Server),
   supervisor:terminate_child(erlami_sup,whereis(erlami_client:get_worker_name(binary_to_atom(Server,utf8)))).
 
 restart(Server) ->
   supervisor:terminate_child(erlami_sup,whereis(erlami_client:get_worker_name(binary_to_atom(Server,utf8)))),
-  {ok,Filelist} = file:list_dir("/etc/crm_conductor/"),
-    lists:map(fun(X) ->
-      Filename = <<"/etc/crm_conductor/", (z_convert:to_binary(X))/binary>>,
-      {ok,File} = file:read_file(binary:bin_to_list(Filename)),
-      Data = jiffy:decode(File),
-      Ip = crm_utils:get_value([z_convert:to_binary(X),<<"ami_server">>],Data),
-      Port = case crm_utils:get_value([z_convert:to_binary(X),<<"ami_port">>],Data) of
-        <<>> -> 5038;
-        Port1 -> Port1
-      end,
-      Username = crm_utils:get_value([z_convert:to_binary(X),<<"ami_username">>],Data),
-      Secret = crm_utils:get_value([z_convert:to_binary(X),<<"ami_secret">>],Data),
-      Enabled = crm_utils:get_value([z_convert:to_binary(X),<<"enabled">>],Data),
-      case Enabled == 1 andalso Ip == Server andalso Username =/= <<>> andalso Secret =/= <<>> of
-        true -> 
-          A = erlami_sup:start_child(binary_to_atom(Ip,utf8), erlami_client:get_worker_name(binary_to_atom(Ip,utf8)),
-                     [{connection, {erlami_tcp_connection, [{host, binary_to_list(Ip)}, {port, Port}]}},{enabled, Enabled},
-                     {username, binary_to_list(Username)},{secret, binary_to_list(Secret)}]),
-           ets:insert(processes,{Ip,{z_convert:to_binary(X),A}});
-        false -> ok
-      end
-  end, Filelist).
+  start(Server).
