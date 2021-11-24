@@ -179,7 +179,7 @@ wait_salutation(
     Username = erlami_server_config:extract_username(ServerInfo),
     Secret = erlami_server_config:extract_secret(ServerInfo),
     Action = erlami_message:new_action(
-        "login", [{"username", Username}, {"secret", Secret}]
+        "login", [{"username", Username}, {"secret", Secret}, {"events","on"}]
     ),
     Fun = Conn#erlami_connection.send,
     ok = Fun(Action),
@@ -295,18 +295,15 @@ receiving({action, Action, Callback}, #clientstate{
 
 %% @doc Validates an asterisk salutation by pattern matching.
 -spec validate_salutation(Host::string()) -> ok | unknown_salutation.
-validate_salutation("Asterisk Call Manager/1.1\r\n") ->
-    ok;
-
-validate_salutation("Asterisk Call Manager/1.0\r\n") ->
-    ok;
-
-validate_salutation("Asterisk Call Manager/1.2\r\n") ->
-    ok;
-
-validate_salutation(Invalid) ->
-    error_logger:error_msg("Invalid Salutation: ~p", [Invalid]),
-    unknown_salutation.
+validate_salutation(Salutation) ->
+    case list_to_binary(Salutation) of
+        <<"Asterisk Call Manager", _/binary>> ->
+            lager:info("salutation: ~p", [Salutation]),
+            ok;
+        _ ->
+            lager:info("invalid salutation: ~p", [Salutation]),
+            unknown_salutation
+    end.
 
 %% @doc Dispatches an event to the interested listeners, will also run the
 %% predicates before dispatching.
