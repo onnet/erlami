@@ -48,7 +48,7 @@
 %% ------------------------------------------------------------------
 %% Types
 %% ------------------------------------------------------------------
--record(clientstate, {name, serverinfo, listeners, actions, connection}).
+-record(clientstate, {name, worker_name, serverinfo, listeners, actions, connection}).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -57,7 +57,7 @@
     start_link/3, get_worker_name/1, process_salutation/2,
     wait_salutation/2, process_event/2, process_response/2,
     wait_login_response/2, receiving/2, register_listener/2,
-    send_action/3
+    send_action/3, wait_reconnect/2
 ]).
 
 %% ------------------------------------------------------------------
@@ -91,15 +91,29 @@ get_worker_name(AsteriskServerName) ->
 %% gen_fsm Function Definitions
 %% ------------------------------------------------------------------
 init([ServerName, WorkerName, ServerInfo]) ->
-    {ConnModule, ConnOptions} = erlami_server_config:extract_connection(
-        ServerInfo
-    ),
-    {ok, Conn} = erlang:apply(ConnModule, open, [ConnOptions]),
-    _Reader = erlami_reader:start_link(WorkerName, Conn),
-    {ok, wait_salutation, #clientstate{
-        name=ServerName, serverinfo=ServerInfo,
-        listeners=[], actions=[], connection=Conn
-    }}.
+    {ConnModule, ConnOptions} = erlami_server_config:extract_connection(ServerInfo),
+    try
+        {ok, Conn} = erlang:apply(ConnModule, open, [ConnOptions]),
+        _Reader = erlami_reader:start_link(WorkerName, Conn),
+        {ok
+        ,wait_salutation
+        ,#clientstate{name=ServerName
+                     ,worker_name=WorkerName
+                     ,serverinfo=ServerInfo
+                     ,listeners=[]
+                     ,actions=[]
+                     ,connection=Conn
+        }}
+    catch
+        E ->
+            lager:info("failed attempt to init erlami_client: ~p error: ~p", [ServerName, E]),
+            {ok
+            ,wait_reconnect
+            ,#clientstate{name=ServerName
+                         ,worker_name=WorkerName
+                         ,serverinfo=ServerInfo
+            }}
+    end.
 
 handle_event(
     {register, ListenerDescriptor}, StateName, #clientstate{
@@ -184,6 +198,39 @@ wait_salutation(
     Fun = Conn#erlami_connection.send,
     ok = Fun(Action),
     {next_state, wait_login_response, State}.
+
+wait_reconnect(
+    {reconnect, Reconnect}
+    ,#clientstate{name=ServerName
+                 ,worker_name=WorkerName
+                 ,serverinfo=ServerInfo
+                 }=_State
+) ->
+    lager:debug("Got Reconnect: ~p", [Reconnect]),
+    sleep:timer(5000),
+    {ConnModule, ConnOptions} = erlami_server_config:extract_connection(ServerInfo),
+    try
+        {ok, Conn} = erlang:apply(ConnModule, open, [ConnOptions]),
+        _Reader = erlami_reader:start_link(WorkerName, Conn),
+        {next_state
+        ,wait_salutation
+        ,#clientstate{name=ServerName
+                     ,worker_name=WorkerName
+                     ,serverinfo=ServerInfo
+                     ,listeners=[]
+                     ,actions=[]
+                     ,connection=Conn
+        }}
+    catch
+        E ->
+            lager:info("failed attempt to reconect erlami_client: ~p, error: ~p ", [ServerName, E]),
+            {next_state
+            ,wait_reconnect
+            ,#clientstate{name=ServerName
+                         ,worker_name=WorkerName
+                         ,serverinfo=ServerInfo
+            }}
+    end.
 
 %% @doc After sending the login action, we need to receive the
 %% response/result.
