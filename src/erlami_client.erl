@@ -198,7 +198,7 @@ wait_salutation(
         serverinfo=ServerInfo, connection=#erlami_connection{}=Conn
     }=State
 ) ->
-    lager:debug("Got Salutation: ~p", [Salutation]),
+    lager:info("Got Salutation: ~p", [Salutation]),
     ok = validate_salutation(Salutation),
     Username = erlami_server_config:extract_username(ServerInfo),
     Secret = erlami_server_config:extract_secret(ServerInfo),
@@ -214,9 +214,9 @@ wait_reconnect(
     ,#clientstate{name=ServerName
                  ,worker_name=WorkerName
                  ,serverinfo=ServerInfo
-                 }=_State
+                 }=State
 ) ->
-    lager:debug("Got Reconnect: ~p", [Reconnect]),
+    lager:info("Got Reconnect: ~p", [Reconnect]),
     sleep:timer(5000),
     {ConnModule, ConnOptions} = erlami_server_config:extract_connection(ServerInfo),
     try erlang:apply(ConnModule, open, [ConnOptions]) of
@@ -234,22 +234,16 @@ wait_reconnect(
             }};
         R ->
             lager:info("failed attempt to reconect erlami_client: ~p, error: ~p ", [ServerName, R]),
-            {next_state
-            ,wait_reconnect
-            ,#clientstate{name=ServerName
-                         ,worker_name=WorkerName
-                         ,serverinfo=ServerInfo
-            }}
+            {next_state, wait_reconnect, State}
     catch
         E ->
             lager:info("failed attempt to reconect erlami_client: ~p, error: ~p ", [ServerName, E]),
-            {next_state
-            ,wait_reconnect
-            ,#clientstate{name=ServerName
-                         ,worker_name=WorkerName
-                         ,serverinfo=ServerInfo
-            }}
-    end.
+            {next_state, wait_reconnect, State}
+    end;
+wait_reconnect(A, B) ->
+    lager:info("wait_reconnect(A, B) A: ~p", [A]),
+    lager:info("wait_reconnect(A, B) B: ~p", [B]),
+    {next_state, test_state, B}.
 
 %% @doc After sending the login action, we need to receive the
 %% response/result.
