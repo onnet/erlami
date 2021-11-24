@@ -92,9 +92,11 @@ get_worker_name(AsteriskServerName) ->
 %% ------------------------------------------------------------------
 init([ServerName, WorkerName, ServerInfo]) ->
     {ConnModule, ConnOptions} = erlami_server_config:extract_connection(ServerInfo),
+
     try erlang:apply(ConnModule, open, [ConnOptions]) of
         {ok, Conn} ->
             _Reader = erlami_reader:start_link(WorkerName, Conn),
+            lager:info("conected: ~p", [ServerName]),
             {ok
             ,wait_salutation
             ,#clientstate{name=ServerName
@@ -104,7 +106,7 @@ init([ServerName, WorkerName, ServerInfo]) ->
                          ,actions=[]
                          ,connection=Conn
             }};
-        _R ->
+        R ->
             lager:info("failed attempt to init erlami_client: ~p error: ~p", [ServerName, R]),
             {ok
             ,wait_reconnect
@@ -220,6 +222,7 @@ wait_reconnect(
     try erlang:apply(ConnModule, open, [ConnOptions]) of
         {ok, Conn} ->
             _Reader = erlami_reader:start_link(WorkerName, Conn),
+            lager:info("reconected: ~p", [ServerName]),
             {next_state
             ,wait_salutation
             ,#clientstate{name=ServerName
