@@ -37,18 +37,25 @@ open(Options) ->
     {port, Port} = lists:keyfind(port, 1, Options),
     {ok, #hostent{h_addr_list=Addresses}}
         = erlami_connection:resolve_host(Host),
-    {ok, Socket} = real_connect(Addresses, Port),
-    {ok, #erlami_connection{
-        send = fun(Data) ->
-            ?MODULE:send(Socket, Data)
-        end,
-        read_line = fun(Timeout) ->
-            ?MODULE:read_line(Socket, Timeout)
-        end,
-        close = fun() ->
-            ?MODULE:close(Socket)
-        end
-    }}.
+    try real_connect(Addresses, Port) of
+        {ok, Socket} ->
+            {ok, #erlami_connection{
+                send = fun(Data) ->
+                    ?MODULE:send(Socket, Data)
+                end,
+                read_line = fun(Timeout) ->
+                    ?MODULE:read_line(Socket, Timeout)
+                end,
+                close = fun() ->
+                    ?MODULE:close(Socket)
+                end
+            }};
+        _ ->
+            'error'
+    catch
+        _ ->
+            'error'
+    end.
 
 %% @doc Establishes a connection to the asterisk box, either via normal tcp or
 %% tcp+ssl. Will try to get all available address for the given hostname or

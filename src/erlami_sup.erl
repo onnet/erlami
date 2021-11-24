@@ -53,5 +53,5 @@ init([]) ->
         permanent, brutal_kill, worker, [erlami_client]
     },
     Children = [Client],
-    RestartStrategy = {simple_one_for_one, 0, 1},
+    RestartStrategy = {simple_one_for_one, 10, 1},
     {ok, {RestartStrategy, Children}}.
