@@ -92,18 +92,26 @@ get_worker_name(AsteriskServerName) ->
 %% ------------------------------------------------------------------
 init([ServerName, WorkerName, ServerInfo]) ->
     {ConnModule, ConnOptions} = erlami_server_config:extract_connection(ServerInfo),
-    try
-        {ok, Conn} = erlang:apply(ConnModule, open, [ConnOptions]),
-        _Reader = erlami_reader:start_link(WorkerName, Conn),
-        {ok
-        ,wait_salutation
-        ,#clientstate{name=ServerName
-                     ,worker_name=WorkerName
-                     ,serverinfo=ServerInfo
-                     ,listeners=[]
-                     ,actions=[]
-                     ,connection=Conn
-        }}
+    try erlang:apply(ConnModule, open, [ConnOptions]) of
+        {ok, Conn} ->
+            _Reader = erlami_reader:start_link(WorkerName, Conn),
+            {ok
+            ,wait_salutation
+            ,#clientstate{name=ServerName
+                         ,worker_name=WorkerName
+                         ,serverinfo=ServerInfo
+                         ,listeners=[]
+                         ,actions=[]
+                         ,connection=Conn
+            }};
+        _R ->
+            lager:info("failed attempt to init erlami_client: ~p error: ~p", [ServerName, R]),
+            {ok
+            ,wait_reconnect
+            ,#clientstate{name=ServerName
+                         ,worker_name=WorkerName
+                         ,serverinfo=ServerInfo
+            }}
     catch
         E ->
             lager:info("failed attempt to init erlami_client: ~p error: ~p", [ServerName, E]),
@@ -209,18 +217,26 @@ wait_reconnect(
     lager:debug("Got Reconnect: ~p", [Reconnect]),
     sleep:timer(5000),
     {ConnModule, ConnOptions} = erlami_server_config:extract_connection(ServerInfo),
-    try
-        {ok, Conn} = erlang:apply(ConnModule, open, [ConnOptions]),
-        _Reader = erlami_reader:start_link(WorkerName, Conn),
-        {next_state
-        ,wait_salutation
-        ,#clientstate{name=ServerName
-                     ,worker_name=WorkerName
-                     ,serverinfo=ServerInfo
-                     ,listeners=[]
-                     ,actions=[]
-                     ,connection=Conn
-        }}
+    try erlang:apply(ConnModule, open, [ConnOptions]) of
+        {ok, Conn} ->
+            _Reader = erlami_reader:start_link(WorkerName, Conn),
+            {next_state
+            ,wait_salutation
+            ,#clientstate{name=ServerName
+                         ,worker_name=WorkerName
+                         ,serverinfo=ServerInfo
+                         ,listeners=[]
+                         ,actions=[]
+                         ,connection=Conn
+            }};
+        R ->
+            lager:info("failed attempt to reconect erlami_client: ~p, error: ~p ", [ServerName, R]),
+            {next_state
+            ,wait_reconnect
+            ,#clientstate{name=ServerName
+                         ,worker_name=WorkerName
+                         ,serverinfo=ServerInfo
+            }}
     catch
         E ->
             lager:info("failed attempt to reconect erlami_client: ~p, error: ~p ", [ServerName, E]),
