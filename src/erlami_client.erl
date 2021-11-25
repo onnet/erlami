@@ -57,7 +57,7 @@
     start_link/3, get_worker_name/1, process_salutation/2,
     wait_salutation/2, process_event/2, process_response/2,
     wait_login_response/2, receiving/2, register_listener/2,
-    send_action/3, wait_reconnect/2
+    send_action/3, wait_reconnect/2, send_delayed_reconnect/2
 ]).
 
 %% ------------------------------------------------------------------
@@ -108,6 +108,7 @@ init([ServerName, WorkerName, ServerInfo]) ->
             }};
         R ->
             lager:info("failed attempt to init erlami_client: ~p error: ~p", [ServerName, R]),
+            spawn('erlami_client', 'send_delayed_reconnect', [WorkerName, 5000]),
             {ok
             ,wait_reconnect
             ,#clientstate{name=ServerName
@@ -117,6 +118,7 @@ init([ServerName, WorkerName, ServerInfo]) ->
     catch
         E ->
             lager:info("failed attempt to init erlami_client: ~p error: ~p", [ServerName, E]),
+            spawn('erlami_client', 'send_delayed_reconnect', [WorkerName, 5000]),
             {ok
             ,wait_reconnect
             ,#clientstate{name=ServerName
@@ -186,6 +188,10 @@ send_action(ErlamiClient, Action, Callback) ->
         get_worker_name(ErlamiClient), {action, Action, Callback}
     ).
 
+send_delayed_reconnect(ErlamiClient, Timeout) ->
+    timer:sleep(Timeout),
+    gen_fsm:send_event(ErlamiClient, {reconnect, "try reconnect"}).
+
 %% ------------------------------------------------------------------
 %% States.
 %% ------------------------------------------------------------------
@@ -217,7 +223,6 @@ wait_reconnect(
                  }=State
 ) ->
     lager:info("Got Reconnect: ~p", [Reconnect]),
-    sleep:timer(5000),
     {ConnModule, ConnOptions} = erlami_server_config:extract_connection(ServerInfo),
     try erlang:apply(ConnModule, open, [ConnOptions]) of
         {ok, Conn} ->
@@ -234,16 +239,18 @@ wait_reconnect(
             }};
         R ->
             lager:info("failed attempt to reconect erlami_client: ~p, error: ~p ", [ServerName, R]),
+            spawn('erlami_client', 'send_delayed_reconnect', [WorkerName, 5000]),
             {next_state, wait_reconnect, State}
     catch
         E ->
             lager:info("failed attempt to reconect erlami_client: ~p, error: ~p ", [ServerName, E]),
+            spawn('erlami_client', 'send_delayed_reconnect', [WorkerName, 5000]),
             {next_state, wait_reconnect, State}
     end;
 wait_reconnect(A, B) ->
     lager:info("wait_reconnect(A, B) A: ~p", [A]),
     lager:info("wait_reconnect(A, B) B: ~p", [B]),
-    {next_state, test_state, B}.
+    {next_state, wait_reconnect, B}.
 
 %% @doc After sending the login action, we need to receive the
 %% response/result.
