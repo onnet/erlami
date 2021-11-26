@@ -54,10 +54,19 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 -export([
-    start_link/3, get_worker_name/1, process_salutation/2,
-    wait_salutation/2, process_event/2, process_response/2,
-    wait_login_response/2, receiving/2, register_listener/2,
-    send_action/3, wait_reconnect/2, send_delayed_reconnect/2
+    start_link/3
+   ,get_worker_name/1
+   ,process_salutation/2
+   ,wait_salutation/2
+   ,process_event/2
+   ,process_response/2
+   ,wait_login_response/2
+   ,receiving/2
+   ,register_listener/2
+   ,send_action/3
+   ,wait_reconnect/2
+   ,send_delayed_reconnect/2
+   ,move_to_reconnect/2
 ]).
 
 %% ------------------------------------------------------------------
@@ -139,12 +148,14 @@ handle_event(
     }};
 
 handle_event(_Event, StateName, State) ->
+    lager:info("inside handle_event StateName: ~p", [StateName]),
     {next_state, StateName, State}.
 
 handle_sync_event(_Event, _From, StateName, State) ->
     {reply, ok, StateName, State}.
 
 handle_info(_Info, StateName, State) ->
+    lager:info("inside handle_info StateName: ~p", [StateName]),
     {next_state, StateName, State}.
 
 terminate(_Reason, _StateName, _State) ->
@@ -192,6 +203,9 @@ send_delayed_reconnect(ErlamiClient, Timeout) ->
     timer:sleep(Timeout),
     gen_fsm:send_event(ErlamiClient, {reconnect, "try reconnect"}).
 
+move_to_reconnect(ErlamiClient, Reason) ->
+    gen_fsm:send_event(ErlamiClient, {go_reconnect, Reason}).
+
 %% ------------------------------------------------------------------
 %% States.
 %% ------------------------------------------------------------------
@@ -220,9 +234,17 @@ wait_reconnect(
     ,#clientstate{name=ServerName
                  ,worker_name=WorkerName
                  ,serverinfo=ServerInfo
+                 ,connection=OldConn
                  }=State
 ) ->
     lager:info("Got Reconnect: ~p", [Reconnect]),
+    case OldConn of
+        #erlami_connection{} ->
+            Fun = OldConn#erlami_connection.close,
+            Fun();
+        _Zero ->
+            lager:info("No OldConn found: ~p", [OldConn])
+    end,
     {ConnModule, ConnOptions} = erlami_server_config:extract_connection(ServerInfo),
     try erlang:apply(ConnModule, open, [ConnOptions]) of
         {ok, Conn} ->
@@ -268,6 +290,24 @@ wait_login_response({response, Response}, #clientstate{}=State) ->
 -spec receiving(
     clienteventevent()|clientresponseevent(), State
 ) -> {next_state, receiving, State}.
+receiving({go_reconnect, Reason}
+            ,#clientstate{%name=ServerName
+                         worker_name=WorkerName
+ %                        ,serverinfo=ServerInfo
+             %            ,listeners=[]
+             %            ,actions=[]
+             %            ,connection=_Conn
+            }=State
+
+) ->
+    lager:info("moving from receiving to reconnect state for WorkerName: ~p Reason: ~p", [WorkerName, Reason]),
+    spawn('erlami_client', 'send_delayed_reconnect', [WorkerName, 5000]),
+ %   lager:info("right before waitreceiving WorkerName: ~p", [WorkerName]),
+ %   lager:info("right before waitreceiving ServerInfo: ~p", [ServerInfo]),
+ %   lager:info("right before waitreceiving State: ~p", [State]),
+ %   lager:info("right before waitreceiving get_worker_name(ServerName): ~p", [get_worker_name(ServerName)]),
+    {next_state, wait_reconnect, State};
+
 receiving({response, Response}, #clientstate{
     name=Name, serverinfo=ServerInfo, connection=Conn,
     actions=Actions, listeners=Listeners

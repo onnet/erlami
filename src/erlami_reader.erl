@@ -47,7 +47,7 @@ start_link(ErlamiClient, #erlami_connection{}=Connection) ->
     ErlamiClient::string(), Connection::#erlami_connection{}
 ) -> none().
 read_salutation(ErlamiClient, Connection) ->
-    Line = wait_line(Connection),
+    Line = wait_line(ErlamiClient, Connection),
     lager:debug("Got as salutation: ~p", [Line]),
     erlami_client:process_salutation(ErlamiClient, {salutation, Line}).
 
@@ -58,8 +58,9 @@ read_salutation(ErlamiClient, Connection) ->
     ErlamiClient::string(), Connection::#erlami_connection{},
     Acc::string()
 ) -> none().
+loop(ErlamiClient, Connection, 'exit_loop') -> 'ok';
 loop(ErlamiClient, Connection, Acc) ->
-    NewAcc = case wait_line(Connection) of
+    NewAcc = case wait_line(ErlamiClient, Connection) of
         "\r\n" ->
             UnmarshalledMsg = erlami_message:unmarshall(Acc),
             dispatch_message(
@@ -93,8 +94,8 @@ dispatch_message(_ErlamiClient, Message, _IsResponse, _IsEvent, Original) ->
     %erlang:error(unknown_message).
 
 %% @doc Reads a single line from asterisk.
--spec wait_line(Connection::#erlami_connection{}) -> string().
-wait_line(#erlami_connection{read_line=Fun}=Connection) ->
+-spec wait_line(ErlamiClient::string(), Connection::#erlami_connection{}) -> string().
+wait_line(ErlamiClient, #erlami_connection{read_line=Fun}=Connection) ->
     case Fun(10) of
         {ok, Line} -> Line;
         {error, timeout} ->
@@ -103,8 +104,10 @@ wait_line(#erlami_connection{read_line=Fun}=Connection) ->
             after 10 ->
                 ok
             end,
-            wait_line(Connection);
+            wait_line(ErlamiClient, Connection);
         {error, Reason} ->
-            error_logger:error_msg("Got: ~p", [Reason]),
-            erlang:error(Reason)
+            lager:info("Got: ~p", [Reason]),
+        %    erlang:error(Reason)
+            erlami_client:move_to_reconnect(ErlamiClient, Reason),
+            'exit_loop'
     end.
