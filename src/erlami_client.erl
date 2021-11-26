@@ -54,7 +54,7 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 -export([
-    start_link/3
+    start_link/2
    ,get_worker_name/1
    ,process_salutation/2
    ,wait_salutation/2
@@ -82,12 +82,12 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 -spec start_link(
-    ServerName::string(), WorkerName::string(),
+    ServerName::string(),
     ServerInfo::erlami_server_config:serverinfo()
 ) -> ok.
-start_link(ServerName, WorkerName, ServerInfo) ->
+start_link(ServerName, ServerInfo) ->
     gen_fsm:start_link(
-        {local, WorkerName}, ?MODULE, [ServerName, WorkerName, ServerInfo], []
+        {local, get_worker_name(ServerName)}, ?MODULE, [ServerName, ServerInfo], []
     ).
 
 %% @doc Returns a worker name (erlagi_client) based on an asterisk server
@@ -99,17 +99,16 @@ get_worker_name(AsteriskServerName) ->
 %% ------------------------------------------------------------------
 %% gen_fsm Function Definitions
 %% ------------------------------------------------------------------
-init([ServerName, WorkerName, ServerInfo]) ->
+init([ServerName, ServerInfo]) ->
     {ConnModule, ConnOptions} = erlami_server_config:extract_connection(ServerInfo),
 
     try erlang:apply(ConnModule, open, [ConnOptions]) of
         {ok, Conn} ->
-            _Reader = erlami_reader:start_link(WorkerName, Conn),
-            lager:info("conected: ~p", [ServerName]),
+            _Reader = erlami_reader:start_link(get_worker_name(ServerName), Conn),
+            lager:info("connected: ~p", [ServerName]),
             {ok
             ,wait_salutation
             ,#clientstate{name=ServerName
-                         ,worker_name=WorkerName
                          ,serverinfo=ServerInfo
                          ,listeners=[]
                          ,actions=[]
@@ -117,21 +116,19 @@ init([ServerName, WorkerName, ServerInfo]) ->
             }};
         R ->
             lager:info("failed attempt to init erlami_client: ~p error: ~p", [ServerName, R]),
-            spawn('erlami_client', 'send_delayed_reconnect', [WorkerName, 5000]),
+            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
             {ok
             ,wait_reconnect
             ,#clientstate{name=ServerName
-                         ,worker_name=WorkerName
                          ,serverinfo=ServerInfo
             }}
     catch
         E ->
             lager:info("failed attempt to init erlami_client: ~p error: ~p", [ServerName, E]),
-            spawn('erlami_client', 'send_delayed_reconnect', [WorkerName, 5000]),
+            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
             {ok
             ,wait_reconnect
             ,#clientstate{name=ServerName
-                         ,worker_name=WorkerName
                          ,serverinfo=ServerInfo
             }}
     end.
@@ -232,7 +229,6 @@ wait_salutation(
 wait_reconnect(
     {reconnect, Reconnect}
     ,#clientstate{name=ServerName
-                 ,worker_name=WorkerName
                  ,serverinfo=ServerInfo
                  ,connection=OldConn
                  }=State
@@ -248,25 +244,24 @@ wait_reconnect(
     {ConnModule, ConnOptions} = erlami_server_config:extract_connection(ServerInfo),
     try erlang:apply(ConnModule, open, [ConnOptions]) of
         {ok, Conn} ->
-            _Reader = erlami_reader:start_link(WorkerName, Conn),
-            lager:info("reconected: ~p", [ServerName]),
+            _Reader = erlami_reader:start_link(get_worker_name(ServerName), Conn),
+            lager:info("reconnected: ~p", [ServerName]),
             {next_state
             ,wait_salutation
             ,#clientstate{name=ServerName
-                         ,worker_name=WorkerName
                          ,serverinfo=ServerInfo
                          ,listeners=[]
                          ,actions=[]
                          ,connection=Conn
             }};
         R ->
-            lager:info("failed attempt to reconect erlami_client: ~p, error: ~p ", [ServerName, R]),
-            spawn('erlami_client', 'send_delayed_reconnect', [WorkerName, 5000]),
+            lager:info("failed attempt to reconnect erlami_client: ~p, error: ~p ", [ServerName, R]),
+            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
             {next_state, wait_reconnect, State}
     catch
         E ->
-            lager:info("failed attempt to reconect erlami_client: ~p, error: ~p ", [ServerName, E]),
-            spawn('erlami_client', 'send_delayed_reconnect', [WorkerName, 5000]),
+            lager:info("failed attempt to reconnect erlami_client: ~p, error: ~p ", [ServerName, E]),
+            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
             {next_state, wait_reconnect, State}
     end;
 wait_reconnect(A, B) ->
@@ -290,22 +285,10 @@ wait_login_response({response, Response}, #clientstate{}=State) ->
 -spec receiving(
     clienteventevent()|clientresponseevent(), State
 ) -> {next_state, receiving, State}.
-receiving({go_reconnect, Reason}
-            ,#clientstate{%name=ServerName
-                         worker_name=WorkerName
- %                        ,serverinfo=ServerInfo
-             %            ,listeners=[]
-             %            ,actions=[]
-             %            ,connection=_Conn
-            }=State
-
-) ->
-    lager:info("moving from receiving to reconnect state for WorkerName: ~p Reason: ~p", [WorkerName, Reason]),
-    spawn('erlami_client', 'send_delayed_reconnect', [WorkerName, 5000]),
- %   lager:info("right before waitreceiving WorkerName: ~p", [WorkerName]),
- %   lager:info("right before waitreceiving ServerInfo: ~p", [ServerInfo]),
- %   lager:info("right before waitreceiving State: ~p", [State]),
- %   lager:info("right before waitreceiving get_worker_name(ServerName): ~p", [get_worker_name(ServerName)]),
+receiving({go_reconnect, Reason} ,#clientstate{name=ServerName}=State) ->
+    lager:info("moving from receiving to reconnect state for: ~p Reason: ~p"
+              ,[get_worker_name(ServerName), Reason]),
+    spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
     {next_state, wait_reconnect, State};
 
 receiving({response, Response}, #clientstate{

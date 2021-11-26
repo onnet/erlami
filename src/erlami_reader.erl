@@ -58,7 +58,7 @@ read_salutation(ErlamiClient, Connection) ->
     ErlamiClient::string(), Connection::#erlami_connection{},
     Acc::string()
 ) -> none().
-loop(ErlamiClient, Connection, 'exit_loop') -> 'ok';
+loop(_ErlamiClient, _Connection, 'exit_loop') -> 'ok';
 loop(ErlamiClient, Connection, Acc) ->
     NewAcc = case wait_line(ErlamiClient, Connection) of
         "\r\n" ->
