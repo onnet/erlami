@@ -224,7 +224,12 @@ wait_salutation(
     ),
     Fun = Conn#erlami_connection.send,
     ok = Fun(Action),
-    {next_state, wait_login_response, State}.
+    {next_state, wait_login_response, State};
+wait_salutation({go_reconnect, Reason} ,#clientstate{name=ServerName}=State) ->
+    lager:info("moving from wait_salutation to reconnect state for: ~p Reason: ~p"
+              ,[get_worker_name(ServerName), Reason]),
+    spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
+    {next_state, wait_reconnect, State}.
 
 wait_reconnect(
     {reconnect, Reconnect}
@@ -264,10 +269,13 @@ wait_reconnect(
             spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
             {next_state, wait_reconnect, State}
     end;
-wait_reconnect(A, B) ->
-    lager:info("wait_reconnect(A, B) A: ~p", [A]),
-    lager:info("wait_reconnect(A, B) B: ~p", [B]),
-    {next_state, wait_reconnect, B}.
+wait_reconnect({action, _Action, _Callback}, State) ->
+    lager:info("wait_reconnect state. No action for ~p possible", [State#clientstate.name]),
+    {next_state, wait_reconnect, State};
+wait_reconnect(A, State) ->
+    lager:info("wait_reconnect(A, State) A: ~p", [A]),
+    lager:info("wait_reconnect(A, State) State: ~p", [State]),
+    {next_state, wait_reconnect, State}.
 
 %% @doc After sending the login action, we need to receive the
 %% response/result.
