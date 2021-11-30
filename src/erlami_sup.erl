@@ -21,7 +21,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0, start_child/2, stop/1]).
+-export([start_link/0, start_child/2, stop_child/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -44,10 +44,10 @@ start_link() ->
 start_child(ServerName, ServerInfo) ->
     supervisor:start_child(?MODULE, [ServerName, ServerInfo]).
 
--spec stop(pid()|string()|atom()) -> 'ok' | {'error', 'not_found'}.
-stop(Pid) when is_pid(Pid) ->
+-spec stop_child(pid()|string()|atom()) -> 'ok' | {'error', 'not_found'}.
+stop_child(Pid) when is_pid(Pid) ->
     supervisor:terminate_child(?MODULE, Pid);
-stop(ServerName) ->
+stop_child(ServerName) ->
     case whereis(erlami_client:get_worker_name(ServerName)) of
         Pid when is_pid(Pid) ->
             supervisor:terminate_child(?MODULE, Pid);
