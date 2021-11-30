@@ -116,7 +116,7 @@ init([ServerName, ServerInfo]) ->
             }};
         R ->
             lager:info("failed attempt to init erlami_client: ~p error: ~p", [ServerName, R]),
-            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
+            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 10000]),
             {ok
             ,wait_reconnect
             ,#clientstate{name=ServerName
@@ -125,7 +125,7 @@ init([ServerName, ServerInfo]) ->
     catch
         E ->
             lager:info("failed attempt to init erlami_client: ~p error: ~p", [ServerName, E]),
-            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
+            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 10000]),
             {ok
             ,wait_reconnect
             ,#clientstate{name=ServerName
@@ -228,7 +228,7 @@ wait_salutation(
 wait_salutation({go_reconnect, Reason} ,#clientstate{name=ServerName}=State) ->
     lager:info("moving from wait_salutation to reconnect state for: ~p Reason: ~p"
               ,[get_worker_name(ServerName), Reason]),
-    spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
+    spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 10000]),
     {next_state, wait_reconnect, State}.
 
 wait_reconnect(
@@ -261,16 +261,19 @@ wait_reconnect(
             }};
         R ->
             lager:info("failed attempt to reconnect erlami_client: ~p, error: ~p ", [ServerName, R]),
-            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
+            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 10000]),
             {next_state, wait_reconnect, State}
     catch
         E ->
             lager:info("failed attempt to reconnect erlami_client: ~p, error: ~p ", [ServerName, E]),
-            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
+            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 10000]),
             {next_state, wait_reconnect, State}
     end;
 wait_reconnect({action, _Action, _Callback}, State) ->
     lager:info("wait_reconnect state. No action for ~p possible", [State#clientstate.name]),
+    {next_state, wait_reconnect, State};
+wait_reconnect({go_reconnect, _} = Tuple, #clientstate{name=ServerName}=State) ->
+    lager:info("~p received ~p, but already in wait_reconnect state", [ServerName, Tuple]),
     {next_state, wait_reconnect, State};
 wait_reconnect(A, State) ->
     lager:info("wait_reconnect(A, State) A: ~p", [A]),
@@ -279,11 +282,13 @@ wait_reconnect(A, State) ->
 
 %% @doc After sending the login action, we need to receive the
 %% response/result.
-wait_login_response({response, Response}, #clientstate{}=State) ->
+wait_login_response({response, Response}, #clientstate{name=ServerName}=State) ->
     case erlami_message:is_response_success(Response) of
         false ->
-            error_logger:error_msg("Cant login: ~p", [Response]),
-            erlang:error(cantlogin);
+            lager:error("Cant login to ~p: ~p", [ServerName, erlami_message:get(Response, "message")]),
+    %        erlang:error(cantlogin);
+            spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 10000]),
+            {next_state, wait_reconnect, State};
         true -> {next_state, receiving, State}
     end.
 
@@ -296,7 +301,7 @@ wait_login_response({response, Response}, #clientstate{}=State) ->
 receiving({go_reconnect, Reason} ,#clientstate{name=ServerName}=State) ->
     lager:info("moving from receiving to reconnect state for: ~p Reason: ~p"
               ,[get_worker_name(ServerName), Reason]),
-    spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 5000]),
+    spawn('erlami_client', 'send_delayed_reconnect', [get_worker_name(ServerName), 10000]),
     {next_state, wait_reconnect, State};
 
 receiving({response, Response}, #clientstate{
