@@ -206,7 +206,7 @@ move_to_reconnect(ErlamiClient, Reason) ->
 
 -spec listeners(ErlamiClient::atom()) -> none().
 listeners(ErlamiClient) ->
-    case sys:get_state(get_worker_name(ErlamiClient) of
+    case sys:get_state(get_worker_name(ErlamiClient)) of
         #clientstate{listeners=Listeners} ->
             Listeners;
         _ ->
