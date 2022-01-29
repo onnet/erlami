@@ -266,7 +266,8 @@ is_response_success(Response) ->
 to_list(#erlami_message{attributes=Attributes, variables=Variables}) ->
     {dict:to_list(Attributes), dict:to_list(Variables)};
 to_list(_ErlMessage) ->
-    lager:info("!!!! Undefined #erlami_message: ~p", [_ErlMessage]).
+    lager:info("!!!! Undefined #erlami_message: ~p", [_ErlMessage]),
+    'undefined_message'.
 
 %% @doc Returns true if this response is complete or false if the response
 %% needs to be completed with a stream of events.
