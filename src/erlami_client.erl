@@ -67,6 +67,7 @@
    ,wait_reconnect/2
    ,send_delayed_reconnect/2
    ,move_to_reconnect/2
+   ,listeners/1
 ]).
 
 %% ------------------------------------------------------------------
@@ -202,6 +203,15 @@ send_delayed_reconnect(ErlamiClient, Timeout) ->
 
 move_to_reconnect(ErlamiClient, Reason) ->
     gen_fsm:send_event(ErlamiClient, {go_reconnect, Reason}).
+
+-spec listeners(ErlamiClient::atom()) -> none().
+listeners(ErlamiClient) ->
+    case sys:get_state(get_worker_name(ErlamiClient) of
+        #clientstate{listeners=Listeners} ->
+            Listeners;
+        _ ->
+            []
+    end.
 
 %% ------------------------------------------------------------------
 %% States.
