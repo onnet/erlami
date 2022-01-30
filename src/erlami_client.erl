@@ -317,33 +317,39 @@ receiving({go_reconnect, Reason} ,#clientstate{name=ServerName}=State) ->
 receiving({response, Response}, #clientstate{
     name=Name, serverinfo=ServerInfo, connection=Conn,
     actions=Actions, listeners=Listeners
-}) ->
+} = State) ->
     % Find the correct action information for this response
+    lager:info("response state Actions: ~p", [Actions]),
     {ok, ActionId} = erlami_message:get(Response, "actionid"),
-    {ActionId, {Action, none, Events, Callback}} = lists:keyfind(
-        ActionId, 1, Actions
-    ),
-    % See if we should dispatch this right away or wait for the events needed
-    % to complete the response.
-    NewActions = case erlami_message:is_response_complete(Response) of
-        true ->
-            % Complete response. Dispatch and remove the action from the queue.
-            Callback(Response, Events),
-            lists:keydelete(ActionId, 1, Actions);
-        false ->
-            % Save the response so we can receive the associated events to
-            % dispatch later.
-            lists:keystore(
-                ActionId, 1, Actions,
-                {ActionId, {Action, Response, [], Callback}}
-            )
-    end,
-    NewState = #clientstate{
-        name=Name,
-        serverinfo=ServerInfo, connection=Conn,
-        actions=NewActions, listeners=Listeners
-    },
-    {next_state, receiving, NewState};
+    lager:info("response ActionId: ~p", [ActionId]),
+    case lists:keyfind(ActionId, 1, Actions) of
+        {ActionId, {Action, none, Events, Callback}} ->
+            % See if we should dispatch this right away or wait for the events needed
+            % to complete the response.
+            NewActions = case erlami_message:is_response_complete(Response) of
+                true ->
+                    % Complete response. Dispatch and remove the action from the queue.
+                    Callback(Response, Events),
+                    lists:keydelete(ActionId, 1, Actions);
+                false ->
+                    % Save the response so we can receive the associated events to
+                    % dispatch later.
+                    lists:keystore(
+                        ActionId, 1, Actions,
+                        {ActionId, {Action, Response, [], Callback}}
+                    )
+            end,
+            NewState = #clientstate{
+                name=Name,
+                serverinfo=ServerInfo, connection=Conn,
+                actions=NewActions, listeners=Listeners
+            },
+            {next_state, receiving, NewState};
+        'false' ->
+            % ignore: not ours, or stale.
+            lager:info("ActionId ~p not recognised. Skipping", [ActionId]),
+            {next_state, receiving, State}
+    end;
 
 receiving({event, Event}, #clientstate{
     name=Name, serverinfo=ServerInfo, connection=Conn,
@@ -399,7 +405,9 @@ receiving({action, Action, Callback}, #clientstate{
         listeners=Listeners
     },
     Fun = Conn#erlami_connection.send,
+  %  lager:info("receiving action 1 Action: ~p", [Action]),
     ok = Fun(Action),
+  %  lager:info("receiving action 2"),
     {next_state, receiving, NewState}.
 
 %% ------------------------------------------------------------------
