@@ -319,7 +319,7 @@ receiving({response, Response}, #clientstate{
     actions=Actions, listeners=Listeners
 } = State) ->
     % Find the correct action information for this response
-    lager:info("response state Actions: ~p", [Actions]),
+    lager:info("response state Actions: ~p ~p", [Actions,Response]),
     {ok, ActionId} = erlami_message:get(Response, "actionid"),
     lager:info("response ActionId: ~p", [ActionId]),
     case lists:keyfind(ActionId, 1, Actions) of
