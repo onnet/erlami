@@ -264,10 +264,10 @@ is_response_success(Response) ->
     #erlami_message{attributes::attributes(), variables::variables()}
 ) -> {rawattributes(), rawvariables()}.
 to_list(#erlami_message{attributes=Attributes, variables=Variables} = _ErlMessage) ->
-    lager:info("Recognised 1 #erlami_message: ~p", [_ErlMessage]),
+    %lager:info("Recognised 1 #erlami_message: ~p", [_ErlMessage]),
     {dict:to_list(Attributes), dict:to_list(Variables)};
 to_list([#erlami_message{attributes=Attributes, variables=Variables}] = _ErlMessage) ->
-    lager:info("Recognised 2 #erlami_message: ~p", [_ErlMessage]),
+    %lager:info("Recognised 2 #erlami_message: ~p", [_ErlMessage]),
     {dict:to_list(Attributes), dict:to_list(Variables)};
 to_list(_ErlMessage) ->
     lager:info("!!!! Undefined #erlami_message: ~p", [_ErlMessage]),
