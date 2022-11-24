@@ -59,7 +59,7 @@ read_salutation(ErlamiClient, Connection) ->
     Acc::string()
 ) -> none().
 loop(_ErlamiClient, _Connection, 'exit_loop') -> 'ok';
-loop(ErlamiClient, Connection, Acc) ->
+loop(ErlamiClient, Connection, Acc) when is_list(Acc) ->
     NewAcc = case wait_line(ErlamiClient, Connection) of
         "\r\n" ->
             UnmarshalledMsg = erlami_message:unmarshall(Acc),
@@ -72,7 +72,11 @@ loop(ErlamiClient, Connection, Acc) ->
             [];
         Line -> string:concat(Acc, Line)
     end,
-    loop(ErlamiClient, Connection, NewAcc).
+    loop(ErlamiClient, Connection, NewAcc);
+loop(ErlamiClient, Connection, Acc) ->
+    lager:error("loop/3 unknown Acc: ~p", [Acc]),
+    loop(ErlamiClient, Connection, []).
+
 
 %% @doc This function is used to select and dispatch a message by pattern
 %% matching on its type. Will notify the erlami_client of a response or an
