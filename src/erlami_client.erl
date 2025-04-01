@@ -319,12 +319,12 @@ receiving({response, Response}, #clientstate{
     actions=Actions, listeners=Listeners
 } = State) ->
     % Find the correct action information for this response
-    lager:info("response state Actions: ~p ~p", [Actions,Response]),
+%    lager:info("response state Actions: ~p ~p", [Actions,Response]),
     ActionId = case erlami_message:get(Response, "actionid") of
         {ok, ActionId1} -> ActionId1;
         _ -> notfound
     end,
-    lager:info("response ActionId: ~p", [ActionId]),
+%    lager:info("response ActionId: ~p", [ActionId]),
     case lists:keyfind(ActionId, 1, Actions) of
         {ActionId, {Action, none, Events, Callback}} ->
             % See if we should dispatch this right away or wait for the events needed
