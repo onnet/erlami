@@ -70,8 +70,16 @@ loop(ErlamiClient, Connection, Acc) when is_list(Acc) ->
                 Acc
             ),
             [];
-        Line -> lager:info("Acc: ~p, Line: ~p",[Acc,Line]),
-            string:concat(Acc, Line)
+        Line ->
+            case Line of
+                'exit_loop' -> Acc;
+                _ ->
+                    try string:concat(Acc, Line)
+                    catch error:Err ->
+                        lager:info("Error: ~p, Acc: ~p, Line: ~p",[Err, Acc,Line]),
+                        Acc
+                    end
+            end
     end,
     loop(ErlamiClient, Connection, NewAcc);
 loop(ErlamiClient, Connection, Acc) ->
